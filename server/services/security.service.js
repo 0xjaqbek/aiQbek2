@@ -25,8 +25,8 @@ import {
   import securityConfig from '../config/security.config.js';
   
   // Import new security enhancements
-  import { ConversationManager } from './conversationManager.js';
-  import { CommandFragmentDetector } from './fragmentDetector.js';
+  import { ConversationManager } from '../client/src/security/conversationManager.js';
+  import { CommandFragmentDetector } from '../client/src/security/fragmentDetector.js';
   import { authorityPatterns } from '../client/src/security/patterns.js';
   
   // Initialize the context tracker
