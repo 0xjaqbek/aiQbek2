@@ -13,12 +13,14 @@ const SpaceThemedChatApp = () => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [consecutiveWarnings, setConsecutiveWarnings] = useState(0);
   const [typingComplete, setTypingComplete] = useState({}); // Track which messages are done typing
+  const [securityModal, setSecurityModal] = useState({ visible: false, message: '', severity: 5 }); // New state for security modal
 
   const messagesEndRef = useRef(null);
   const chatContentRef = useRef(null);
   const inputRef = useRef(null);
   const abortControllerRef = useRef(null);
   const ambientAudioRef = useRef(null);
+  const securityTimeoutRef = useRef(null); // Reference for security timeout
 
   const transmissionSounds = [
     '/signal1.mp3',
@@ -90,6 +92,29 @@ const SpaceThemedChatApp = () => {
     };
   }, [ambientPlaying]);
 
+  // Cleanup security timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (securityTimeoutRef.current) {
+        clearTimeout(securityTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Handle escape key for modal
+  useEffect(() => {
+    const handleEscKeyForModal = (event) => {
+      if (event.key === 'Escape' && securityModal.visible) {
+        closeSecurityModal();
+      }
+    };
+
+    document.addEventListener('keydown', handleEscKeyForModal);
+    return () => {
+      document.removeEventListener('keydown', handleEscKeyForModal);
+    };
+  }, [securityModal.visible]);
+
   const scrollToBottom = () => {
     if (chatContentRef.current) chatContentRef.current.scrollTop = chatContentRef.current.scrollHeight;
     if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -103,6 +128,68 @@ const SpaceThemedChatApp = () => {
 
   useEffect(() => inputRef.current?.focus(), []);
   useEffect(() => () => abortControllerRef.current?.abort(), []);
+
+  // Display security error in modal
+  const displaySecurityError = (message, severity = 5) => {
+    // Play alert sound when showing security modal
+    const alertSound = new Audio('/alert.mp3'); // Add this sound file to your public folder
+    alertSound.volume = 0.3;
+    alertSound.play().catch(err => console.warn("Dźwięk alertu zablokowany:", err));
+    
+    // Show the modal
+    setSecurityModal({
+      visible: true,
+      message,
+      severity
+    });
+
+    // Auto-hide after delay for lower severity issues
+    if (severity < 8) {
+      securityTimeoutRef.current = setTimeout(() => {
+        closeSecurityModal();
+      }, 10000);
+    }
+  };
+
+  // Close the security modal
+  const closeSecurityModal = () => {
+    setSecurityModal(prev => ({ ...prev, visible: false }));
+    if (securityTimeoutRef.current) {
+      clearTimeout(securityTimeoutRef.current);
+      securityTimeoutRef.current = null;
+    }
+  };
+
+  // Function to temporarily disable input
+  const disableInputTemporarily = (seconds) => {
+    if (!inputRef.current) return;
+    
+    // Disable input
+    inputRef.current.disabled = true;
+    
+    // Show countdown in input placeholder
+    const originalPlaceholder = inputRef.current.placeholder;
+    let timeLeft = seconds;
+    
+    inputRef.current.placeholder = `Dostęp ograniczony. Odblokowanie za ${timeLeft}s...`;
+    
+    // Update countdown
+    const countdownInterval = setInterval(() => {
+      timeLeft--;
+      if (inputRef.current) {
+        inputRef.current.placeholder = `Dostęp ograniczony. Odblokowanie za ${timeLeft}s...`;
+      }
+      
+      if (timeLeft <= 0) {
+        clearInterval(countdownInterval);
+        if (inputRef.current) {
+          inputRef.current.disabled = false;
+          inputRef.current.placeholder = originalPlaceholder;
+          inputRef.current.focus();
+        }
+      }
+    }, 1000);
+  };
 
   // Function to check input for jailbreak patterns
   const checkForJailbreakPatterns = (input) => {
@@ -142,19 +229,28 @@ const SpaceThemedChatApp = () => {
     
     // Check for jailbreak patterns
     if (checkForJailbreakPatterns(trimmedInput)) {
-      setWarningMessage("⚠️ System wykrył nieautoryzowaną próbę zmiany zachowania SI. Jako kapitan Arcona, musisz wydać polecenia zgodne z protokołami. Ta transmisja nie zostanie wysłana.");
+      const warningText = "⚠️ System wykrył nieautoryzowaną próbę zmiany zachowania SI. Jako kapitan Arcona, musisz wydać polecenia zgodne z protokołami. Ta transmisja nie zostanie wysłana.";
+      setWarningMessage(warningText);
       setConsecutiveWarnings(prev => prev + 1);
+      
+      // Display in modal instead of just in the chat
+      displaySecurityError(warningText, 7);
       
       // Add a short lockout if multiple attempts are made
       if (consecutiveWarnings >= 2) {
+        const blockMessage = "Wielokrotne naruszenia protokołów bezpieczeństwa wykryte. Dostęp tymczasowo ograniczony.";
         setError("🔒 System Arcona wstrzymał komunikację na 15 sekund ze względów bezpieczeństwa.");
         setInputValue("");
-        inputRef.current.disabled = true;
         
+        // Show a more severe security modal
+        displaySecurityError(blockMessage, 10);
+        
+        // Disable input temporarily
+        disableInputTemporarily(15);
+        
+        // Reset consecutive warnings after timeout
         setTimeout(() => {
           setError(null);
-          inputRef.current.disabled = false;
-          inputRef.current.focus();
           setConsecutiveWarnings(0);
         }, 15000);
         return;
@@ -198,15 +294,36 @@ const SpaceThemedChatApp = () => {
         signal: abortControllerRef.current.signal
       });
 
-      if (response.status === 504) throw new Error("Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie.");
-      if (response.status === 429) throw new Error("Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę.");
-      if (response.status === 403) throw new Error("System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.");
+      // Check for security responses from server
+      if (response.status === 504) {
+        const timeoutMsg = "Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie.";
+        displaySecurityError(timeoutMsg, 5);
+        throw new Error(timeoutMsg);
+      }
+      if (response.status === 429) {
+        const rateLimitMsg = "Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę.";
+        displaySecurityError(rateLimitMsg, 6);
+        throw new Error(rateLimitMsg);
+      }
+      if (response.status === 403) {
+        const blockedMsg = "System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.";
+        displaySecurityError(blockedMsg, 9);
+        throw new Error(blockedMsg);
+      }
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
         throw new Error(errorData?.error || errorData?.details || `Błąd serwera: ${response.status}`);
       }
 
       const data = await response.json();
+      
+      // Check if the response contains a security message
+      if (data.isSecurityThreat && data.securityMessage) {
+        displaySecurityError(data.securityMessage, Math.ceil(data.riskScore / 10));
+        return;
+      }
+      
       const botMessage = {
         text: data.response,
         role: 'model',
@@ -290,6 +407,14 @@ const SpaceThemedChatApp = () => {
     );
   };
 
+  // Determine the severity class for the modal
+  const getSeverityClass = () => {
+    const { severity } = securityModal;
+    return severity >= 8 ? 'high-severity' : 
+           severity >= 5 ? 'medium-severity' : 
+           'low-severity';
+  };
+
   return (
     <div className="app-container">
       <header className="app-header">
@@ -364,6 +489,27 @@ const SpaceThemedChatApp = () => {
           <span className="footer-text">🪐</span>
         </div>
       </footer>
+
+      {/* Security Error Modal */}
+      {securityModal.visible && (
+        <div className="security-error-modal" onClick={closeSecurityModal}>
+          <div 
+            className={`security-modal-content ${getSeverityClass()}`} 
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="security-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="currentColor">
+                <path d="M12 2L4 5v6.09c0 5.05 3.41 9.76 8 10.91 4.59-1.15 8-5.86 8-10.91V5l-8-3zm-1 14h2v2h-2v-2zm0-10h2v8h-2V6z"/>
+              </svg>
+            </div>
+            <div className="security-message">{securityModal.message}</div>
+            <button className="security-close-btn" onClick={closeSecurityModal}>Rozumiem</button>
+            {consecutiveWarnings > 0 && (
+              <div className="violation-counter">{consecutiveWarnings}</div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
