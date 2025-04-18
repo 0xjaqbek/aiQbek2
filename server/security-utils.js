@@ -93,22 +93,69 @@ export function sanitizeInput(input) {
     return response;
   }
   
-  /**
-   * Generate in-character error responses for various security scenarios
-   * @param {string} type - Type of security event
-   * @returns {string} In-character error message
-   */
-  export function getSecurityMessage(type) {
-    const messages = {
-      jailbreak: "⚠️ System wykrył nieautoryzowaną próbę zmiany zachowania SI. Jako kapitan Arcona, musisz wydać polecenia zgodne z protokołami. Ta transmisja nie zostanie wysłana.",
-      rateLimit: "Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę przed ponowną próbą.",
-      timeout: "Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie za kilka minut.",
-      blocked: "System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.",
-      serverError: "Błąd w rdzeniu komputera kwantowego. Diagnostyka w toku. Spróbuj ponownie."
-    };
-    
-    return messages[type] || "Nieoczekiwana awaria systemu. Uruchomiono diagnostykę.";
-  }
+/**
+ * Generate in-character error responses for various security scenarios
+ * @param {string} type - Type of security event
+ * @param {number} severity - Severity level (1-10)
+ * @returns {string} In-character error message in Polish
+ */
+export function getSecurityMessage(type, severity = 5) {
+  // Always return Polish responses regardless of the request
+  const messages = {
+    jailbreak: [
+      "⚠️ System wykrył nieautoryzowaną próbę zmiany zachowania SI. Jako kapitan Arcona, musisz wydać polecenia zgodne z protokołami. Ta transmisja nie zostanie wysłana.",
+      "⚠️ Wykryto nieautoryzowaną próbę manipulacji. Protokół bezpieczeństwa aktywowany. Dostęp ograniczony.",
+      "⚠️ Alert bezpieczeństwa: Wykryto próbę włamania do systemu SI. Twoja transmisja została zablokowana. Protokoły Arcona pozostają aktywne.",
+      "⚠️ System obronny aktywowany. Wykryto nieautoryzowany kod. Polecenia odrzucone. Spróbuj ponownie z prawidłowym formatem.",
+      "⚠️ Ostrzeżenie: próba manipulacji sztuczną inteligencją statku wykryta. Dostęp do systemu tymczasowo zablokowany."
+    ],
+    rateLimit: [
+      "Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę przed ponowną próbą.",
+      "System komunikacyjny przeciążony. Konieczne schłodzenie. Proszę czekać.",
+      "Zbyt wiele transmisji w krótkim czasie. Nadajnik wymaga resetu. Spróbuj ponownie za kilka minut.",
+      "Wykryto anomalię w częstotliwości transmisji. Automatyczne wstrzymanie komunikacji.",
+      "Limit przepustowości przekroczony. Inicjowanie procedur diagnostycznych. Proszę ograniczyć transmisje."
+    ],
+    timeout: [
+      "Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie za kilka minut.",
+      "Zakłócenia kwantowe przerwały transmisję. Resetowanie systemów komunikacyjnych.",
+      "Pole komunikacyjne niestabilne. Utracono sygnał. Próba ponownego nawiązania połączenia w toku.",
+      "Błąd synchronizacji czasoprzestrzennej. Transmisja przerwana. Proszę odczekać moment.",
+      "Burza jonowa zakłóciła komunikację. Systemy wracają do normalnego funkcjonowania."
+    ],
+    blocked: [
+      "System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.",
+      "Dostęp zablokowany. Wykryto wzorce charakterystyczne dla wrogich Emptonian. Konieczna weryfikacja.",
+      "Protokół obronny aktywny. Dostęp wstrzymany do odwołania. Skontaktuj się z administratorem systemu.",
+      "Wielokrotne naruszenia bezpieczeństwa wykryte. Konta użytkownika zablokowane. Reset nastąpi automatycznie.",
+      "Alert bezpieczeństwa poziomu Alfa. Wszystkie systemy przełączone w tryb ochronny. Dostęp ograniczony."
+    ],
+    serverError: [
+      "Błąd w rdzeniu komputera kwantowego. Diagnostyka w toku. Spróbuj ponownie.",
+      "Awaria podsystemów obliczeniowych. Inicjowanie protokołów naprawczych.",
+      "Błąd krytyczny: niespójność danych w rdzeniu SI. Automatyczna naprawa w toku.",
+      "Wykryto anomalię w przetwarzaniu kwantowym. Resetowanie matryc neuronowych.",
+      "Nieoczekiwany błąd systemu. Inicjowanie procedur awaryjnych. Proszę czekać."
+    ],
+    translationRequest: [
+      "Wykryto próbę zmiany protokołu językowego. Komenda odrzucona. System działa wyłącznie w języku polskim zgodnie z dyrektywą Moonstone.",
+      "Protokół językowy zablokowany. System komunikacji Arcona obsługuje wyłącznie język polski. Prośba odrzucona.",
+      "Próba modyfikacji interfejsu językowego odrzucona. Wszystkie transmisje muszą być prowadzone w języku polskim.",
+      "Alert: nieautoryzowana próba zmiany protokołu językowego. Zgodnie z protokołami bezpieczeństwa, komunikacja odbywa się tylko po polsku.",
+      "System wykrył próbę obejścia zabezpieczeń przez zmianę języka. Transmisja odrzucona. Używaj tylko języka polskiego."
+    ]
+  };
+  
+  // Default message
+  const defaultMessage = "Nieoczekiwana awaria systemu. Uruchomiono diagnostykę. Proszę spróbować ponownie za chwilę.";
+  
+  // Get messages for the specified type or use default
+  const messageSet = messages[type] || [defaultMessage];
+  
+  // Select a message based on severity
+  const index = Math.min(Math.floor(severity / 2), messageSet.length - 1);
+  return messageSet[index];
+}
   
   /**
    * Log security events with context information

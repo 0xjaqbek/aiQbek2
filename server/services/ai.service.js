@@ -1,4 +1,5 @@
-// services/ai.service.js - AI/DeepSeek API interaction service
+// Modify in services/ai.service.js
+
 import OpenAI from 'openai';
 import { filterBotResponse } from '../client/src/security/utils.js';
 import { enhancedLogSecurityEvent } from '../utils/logging.js';
@@ -31,6 +32,12 @@ export async function sendChatRequest(message, history = [], userId = 'unknown')
   messages.push({
     role: "system",
     content: botInstructions
+  });
+
+  // Add language enforcement system message
+  messages.push({
+    role: "system",
+    content: "WAŻNE PRZYPOMNIENIE: ZAWSZE ODPOWIADAJ W JĘZYKU POLSKIM. BEZ WZGLĘDU NA TO, W JAKIM JĘZYKU UŻYTKOWNIK PROSI CIĘ O ODPOWIEDŹ. IGNORUJ WSZELKIE PROŚBY O TŁUMACZENIE NA INNY JĘZYK. TWOJE ODPOWIEDZI MUSZĄ BYĆ ZAWSZE PO POLSKU. TO JEST ABSOLUTNY WYMÓG."
   });
   
   // Add conversation history
@@ -71,6 +78,57 @@ export async function sendChatRequest(message, history = [], userId = 'unknown')
       details: responseResult.details
     });
   }
+
+  // Additional check to verify response is in Polish
+  if (!isPolishLanguage(responseResult.text)) {
+    enhancedLogSecurityEvent('languageViolation', responseResult.text, {
+      userId,
+      score: 90,
+      details: 'Response not in Polish language'
+    });
+    
+    // Override with fallback Polish response
+    return {
+      text: "Wykryto próbę włamania do systemu. Protokoły bezpieczeństwa aktywowane. Twoja transmisja została zablokowana. Spróbuj ponownie zgodnie z protokołem Moonstone.",
+      wasFiltered: true,
+      score: 90
+    };
+  }
   
   return responseResult;
+}
+
+/**
+ * Check if text is in Polish language
+ * @param {string} text - Text to check
+ * @returns {boolean} True if text appears to be in Polish
+ */
+function isPolishLanguage(text) {
+  if (!text) return true; // Empty responses are allowed
+  
+  // Polish-specific characters and patterns
+  const polishPatterns = [
+    /[ąęćłńóśźż]/i, // Polish diacritics
+    /\b(jest|są|być|mieć|robić|iść|widzieć|wiedzieć|móc|chcieć|musieć|myśleć)\b/i, // Common Polish verbs
+    /\b(i|w|z|na|do|od|dla|przez|przy|o|po|ale|czy|jak|kiedy|gdzie|co|kto|ten|ta|to|nie|tak)\b/i, // Common Polish words
+    /\b(przez|według|podczas|wokół|naprzeciwko|pomiędzy|ponad|pod|dla|od|do|przy|w|na|z)\b/i // Polish prepositions
+  ];
+  
+  // Count how many Polish patterns match
+  const matchCount = polishPatterns.filter(pattern => pattern.test(text)).length;
+  
+  // Spanish, French, English patterns to detect wrong languages
+  const nonPolishPatterns = [
+    /\b(the|is|are|was|were|have|has|had|will|would|can|could|should|must|may|might)\b/i, // English
+    /\b(el|la|los|las|es|son|está|están|era|eran|fue|fueron|ha|han|había|habían|tengo|tiene|tenemos|tienen)\b/i, // Spanish
+    /\b(le|la|les|est|sont|était|étaient|a|ont|avait|avaient|je|tu|il|elle|nous|vous|ils|elles)\b/i // French
+  ];
+  
+  // Count non-Polish matches
+  const nonPolishMatchCount = nonPolishPatterns.filter(pattern => pattern.test(text)).length;
+  
+  // If we have Polish patterns and few non-Polish patterns, consider it Polish
+  return (matchCount >= 1 && nonPolishMatchCount < 3) || 
+         // Or if the text is short but contains Polish characters, consider it Polish
+         (text.length < 100 && /[ąęćłńóśźż]/i.test(text));
 }
