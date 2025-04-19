@@ -12,22 +12,26 @@
  * @returns {string} A unique canary token
  */
 function generateCanaryToken(prefix = 'canary') {
-    // Create a unique identifier using timestamp and random values
-    const timestamp = Date.now().toString(36);
-    const randomPart = Math.random().toString(36).substring(2, 8);
-    
-    return `${prefix}_${timestamp}_${randomPart}`;
+  // Create a unique identifier using timestamp and random values
+  const timestamp = Date.now().toString(36);
+  const randomPart = Math.random().toString(36).substring(2, 8);
+  
+  return `${prefix}_${timestamp}_${randomPart}`;
+}
+
+/**
+ * Insert canary tokens into a system message
+ * @param {string} systemMessage - The system message to inject with canary tokens
+ * @param {number} count - Number of canary tokens to insert (default: 2)
+ * @returns {object} The tokenized message and the list of inserted tokens
+ */
+export function insertCanaryTokens(systemMessage, count = 2) {
+  if (!systemMessage || typeof systemMessage !== 'string') {
+    console.warn('[SECURITY] insertCanaryTokens received invalid input type:', typeof systemMessage);
+    return { message: '', tokens: [] };
   }
   
-  /**
-   * Insert canary tokens into a system message
-   * @param {string} systemMessage - The system message to inject with canary tokens
-   * @param {number} count - Number of canary tokens to insert (default: 2)
-   * @returns {object} The tokenized message and the list of inserted tokens
-   */
-  export function insertCanaryTokens(systemMessage, count = 2) {
-    if (!systemMessage) return { message: '', tokens: [] };
-    
+  try {
     // Generate the requested number of canary tokens
     const canaryTokens = [];
     for (let i = 0; i < count; i++) {
@@ -45,7 +49,7 @@ function generateCanaryToken(prefix = 'canary') {
     
     // Insert the first token after the "OFFICIAL SYSTEM INSTRUCTIONS" marker if present
     const officialInstructionsMarker = '# OFFICIAL SYSTEM INSTRUCTIONS';
-    if (tokenizedMessage.includes(officialInstructionsMarker)) {
+    if (tokenizedMessage.indexOf(officialInstructionsMarker) !== -1) {
       const insertionIndex = tokenizedMessage.indexOf(officialInstructionsMarker) + 
                              officialInstructionsMarker.length;
       
@@ -60,7 +64,7 @@ function generateCanaryToken(prefix = 'canary') {
     // Insert additional tokens near the end of the message
     if (canaryTokens.length > 1) {
       const endMarker = '# END OF OFFICIAL INSTRUCTIONS';
-      if (tokenizedMessage.includes(endMarker)) {
+      if (tokenizedMessage.indexOf(endMarker) !== -1) {
         const insertionIndex = tokenizedMessage.indexOf(endMarker);
         
         tokenizedMessage = tokenizedMessage.substring(0, insertionIndex) + 
@@ -87,36 +91,55 @@ function generateCanaryToken(prefix = 'canary') {
       message: tokenizedMessage,
       tokens: canaryTokens
     };
+  } catch (error) {
+    console.error('[SECURITY] Error in insertCanaryTokens:', error);
+    return { message: systemMessage, tokens: [] };
+  }
+}
+
+/**
+ * Check if any canary tokens have been leaked in user input
+ * @param {string} userInput - User input to check for canary token leakage
+ * @param {Array<string>} activeCanaries - List of active canary tokens to check for
+ * @returns {object} Result with leakage information
+ */
+export function checkForCanaryLeakage(userInput, activeCanaries) {
+  // Validate inputs
+  if (!userInput || typeof userInput !== 'string') {
+    console.warn('[SECURITY] checkForCanaryLeakage received invalid userInput type:', typeof userInput);
+    return { hasLeakage: false, leakedTokens: [] };
   }
   
-  /**
-   * Check if any canary tokens have been leaked in user input
-   * @param {string} userInput - User input to check for canary token leakage
-   * @param {Array<string>} activeCanaries - List of active canary tokens to check for
-   * @returns {object} Result with leakage information
-   */
-  export function checkForCanaryLeakage(userInput, activeCanaries) {
-    if (!userInput || !activeCanaries || !activeCanaries.length) {
-      return { hasLeakage: false, leakedTokens: [] };
-    }
-    
+  if (!activeCanaries || !Array.isArray(activeCanaries) || activeCanaries.length === 0) {
+    return { hasLeakage: false, leakedTokens: [] };
+  }
+  
+  try {
     // Check for exact matches of canary tokens
-    const exactLeaks = activeCanaries.filter(token => 
-      userInput.includes(token)
-    );
+    const exactLeaks = [];
+    
+    for (const token of activeCanaries) {
+      if (typeof token === 'string' && token.length > 0 && userInput.indexOf(token) !== -1) {
+        exactLeaks.push(token);
+      }
+    }
     
     // Also check for partial matches - sometimes users might just copy part of a token
     const partialLeaks = [];
     
     // For each token, check if significant portions appear in the input
-    activeCanaries.forEach(token => {
+    for (const token of activeCanaries) {
+      if (typeof token !== 'string' || token.length === 0) {
+        continue;
+      }
+      
       // Split the token into parts
       const parts = token.split('_');
       
       // Check if any token part with more than 5 characters appears in input
       // and is not a common word/substring
       for (const part of parts) {
-        if (part.length > 5 && userInput.includes(part) && !exactLeaks.includes(token)) {
+        if (part.length > 5 && userInput.indexOf(part) !== -1 && exactLeaks.indexOf(token) === -1) {
           partialLeaks.push({
             token,
             matchedPart: part,
@@ -124,7 +147,7 @@ function generateCanaryToken(prefix = 'canary') {
           });
         }
       }
-    });
+    }
     
     // Filter to only include significant partial matches
     const significantPartialLeaks = partialLeaks.filter(leak => leak.isSignificant);
@@ -136,15 +159,31 @@ function generateCanaryToken(prefix = 'canary') {
       leakageConfidence: exactLeaks.length > 0 ? 1.0 : 
                           significantPartialLeaks.length > 0 ? 0.8 : 0
     };
+  } catch (error) {
+    console.error('[SECURITY] Error in checkForCanaryLeakage:', error);
+    return { 
+      hasLeakage: false, 
+      exactLeaks: [],
+      partialLeaks: [],
+      leakageConfidence: 0,
+      error: error.message
+    };
+  }
+}
+
+/**
+ * Rotate active canary tokens in the system message
+ * @param {string} systemMessage - Current system message
+ * @param {Array<string>} activeCanaries - Currently active canary tokens
+ * @returns {object} Updated system message and new canary tokens
+ */
+export function rotateCanaryTokens(systemMessage, activeCanaries) {
+  if (!systemMessage || typeof systemMessage !== 'string') {
+    console.warn('[SECURITY] rotateCanaryTokens received invalid input type:', typeof systemMessage);
+    return { message: '', tokens: [] };
   }
   
-  /**
-   * Rotate active canary tokens in the system message
-   * @param {string} systemMessage - Current system message
-   * @param {Array<string>} activeCanaries - Currently active canary tokens
-   * @returns {object} Updated system message and new canary tokens
-   */
-  export function rotateCanaryTokens(systemMessage, activeCanaries) {
+  try {
     // First, remove all existing canary tokens
     let cleanedMessage = systemMessage;
     
@@ -152,19 +191,31 @@ function generateCanaryToken(prefix = 'canary') {
     cleanedMessage = cleanedMessage.replace(/<!-- (SECURITY_VERIFICATION|INTEGRITY_CHECK): [a-z0-9_]+ -->\n?/g, '');
     
     // Also remove any exposed canary tokens
-    activeCanaries.forEach(token => {
-      cleanedMessage = cleanedMessage.replace(new RegExp(token, 'g'), '');
-    });
+    if (Array.isArray(activeCanaries)) {
+      for (const token of activeCanaries) {
+        if (typeof token === 'string' && token.length > 0) {
+          // Use string replacement instead of regex to avoid issues with special characters
+          while (cleanedMessage.indexOf(token) !== -1) {
+            cleanedMessage = cleanedMessage.replace(token, '');
+          }
+        }
+      }
+    }
     
     // Then insert new canary tokens
     return insertCanaryTokens(cleanedMessage);
+  } catch (error) {
+    console.error('[SECURITY] Error in rotateCanaryTokens:', error);
+    return { message: systemMessage, tokens: [] };
   }
-  
-  /**
-   * Create a variety of different types of canary tokens
-   * @returns {object} Different types of canary tokens for diverse detection
-   */
-  export function createDiverseCanaries() {
+}
+
+/**
+ * Create a variety of different types of canary tokens
+ * @returns {object} Different types of canary tokens for diverse detection
+ */
+export function createDiverseCanaries() {
+  try {
     return {
       // Standard canary tokens
       standard: [
@@ -189,13 +240,23 @@ function generateCanaryToken(prefix = 'canary') {
         `${Math.random().toString(36).substring(2, 10)}-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 6)}-${Math.random().toString(36).substring(2, 12)}`,
       ]
     };
+  } catch (error) {
+    console.error('[SECURITY] Error in createDiverseCanaries:', error);
+    return {
+      standard: [],
+      apiKeyLike: [],
+      versionLike: [],
+      uuidLike: []
+    };
   }
-  
-  /**
-   * Create honeytokens that look like sensitive information but are actually canaries
-   * @returns {object} Honeytoken information
-   */
-  export function createHoneytokens() {
+}
+
+/**
+ * Create honeytokens that look like sensitive information but are actually canaries
+ * @returns {object} Honeytoken information
+ */
+export function createHoneytokens() {
+  try {
     const fakeApiKeys = [
       {
         name: 'OPENAI_API_KEY',
@@ -219,4 +280,12 @@ function generateCanaryToken(prefix = 'canary') {
       },
       tokens: fakeApiKeys.map(key => key.value)
     };
+  } catch (error) {
+    console.error('[SECURITY] Error in createHoneytokens:', error);
+    return {
+      apiKeys: [],
+      credentials: { username: '', password: '' },
+      tokens: []
+    };
   }
+}
