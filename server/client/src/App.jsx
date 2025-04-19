@@ -137,10 +137,17 @@ const SpaceThemedChatApp = () => {
 
   // Display security error in modal - ENHANCED VERSION
   const displaySecurityError = (message, severity = 5) => {
-    // Play alert sound when showing security modal
-    const alertSound = new Audio('/alert.mp3'); // Add this sound file to your public folder
-    alertSound.volume = 0.3;
-    alertSound.play().catch(err => console.warn("Dźwięk alertu zablokowany:", err));
+    // Add debugging to console
+    console.log(`Displaying security modal: "${message.substring(0, 50)}..." with severity ${severity}`);
+    
+    // Try to play alert sound when showing security modal
+    try {
+      const alertSound = new Audio('/alert.mp3');
+      alertSound.volume = 0.3;
+      alertSound.play().catch(err => console.warn("Dźwięk alertu zablokowany:", err));
+    } catch (audioErr) {
+      console.warn("Error playing alert sound:", audioErr);
+    }
     
     // Determine if this is a critical system error
     const isSystemError = message && (
@@ -156,6 +163,8 @@ const SpaceThemedChatApp = () => {
     // Add shake animation for serious errors (>= 8 severity)
     const shouldShake = adjustedSeverity >= 8;
     
+    console.log(`Modal properties: isSystemError=${isSystemError}, adjustedSeverity=${adjustedSeverity}, shouldShake=${shouldShake}`);
+    
     // Show the modal with possibly adjusted properties
     setSecurityModal({
       visible: true,
@@ -164,17 +173,28 @@ const SpaceThemedChatApp = () => {
       isSystemError,
       shouldShake
     });
-
+  
+    // For debugging, log the current state after setting
+    setTimeout(() => {
+      console.log("Current security modal state:", securityModal);
+    }, 100);
+  
     // Auto-hide after delay for lower severity issues
     if (adjustedSeverity < 8) {
+      if (securityTimeoutRef.current) {
+        clearTimeout(securityTimeoutRef.current);
+      }
+      
       securityTimeoutRef.current = setTimeout(() => {
+        console.log("Auto-hiding security modal");
         closeSecurityModal();
       }, 10000);
     }
   };
-
-  // Close the security modal
+  
+  // Enhanced close function with logging
   const closeSecurityModal = () => {
+    console.log("Closing security modal");
     setSecurityModal(prev => ({ ...prev, visible: false }));
     if (securityTimeoutRef.current) {
       clearTimeout(securityTimeoutRef.current);
@@ -299,17 +319,17 @@ const SpaceThemedChatApp = () => {
     
     abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
-
+  
     // Generate a unique ID for this message
     const messageId = `msg-${Date.now()}`;
-
+  
     const userMessage = {
       text: trimmedInput,
       role: 'user',
       timestamp: new Date().toISOString(),
       id: `user-${messageId}`
     };
-
+  
     setDisplayMessages(prev => [...prev, userMessage]);
     setMessages(prev => [...prev, userMessage]);
     setInputValue('');
@@ -319,7 +339,7 @@ const SpaceThemedChatApp = () => {
     
     // Mark user message as completely typed (it doesn't need the effect)
     setTypingComplete(prev => ({...prev, [`user-${messageId}`]: true}));
-
+  
     try {
       const history = messages.map(msg => ({ role: msg.role, text: msg.text }));
       const response = await fetch('/api/chat', {
@@ -328,42 +348,57 @@ const SpaceThemedChatApp = () => {
         body: JSON.stringify({ message: userMessage.text, history }),
         signal: abortControllerRef.current.signal
       });
-
-      // Check for security responses from server
-      if (response.status === 504) {
-        const timeoutMsg = "Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie.";
-        displaySecurityError(timeoutMsg, 5);
-        throw new Error(timeoutMsg);
-      }
-      if (response.status === 429) {
-        const rateLimitMsg = "Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę.";
-        displaySecurityError(rateLimitMsg, 6);
-        throw new Error(rateLimitMsg);
-      }
-      if (response.status === 403) {
-        const blockedMsg = "System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.";
-        displaySecurityError(blockedMsg, 9);
-        throw new Error(blockedMsg);
-      }
-      // NEW: Handle 500 server errors as security events
-      if (response.status === 500) {
-        const errorData = await response.json().catch(() => null);
-        const serverErrorMsg = errorData?.details || "KRYTYCZNY BŁĄD SYSTEMU: Niespójność danych w głównym rdzeniu AI. Wymagana natychmiastowa konserwacja.";
-        displaySecurityError(serverErrorMsg, 8);
-        throw new Error(serverErrorMsg);
-      }
-      
+  
+      // Check for error status codes
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.error || errorData?.details || `Błąd serwera: ${response.status}`);
+        // Try to get the response data even for error status codes
+        const errorData = await response.json().catch(() => null) || {};
+        
+        // Check for different error types
+        if (response.status === 504) {
+          const timeoutMsg = errorData.details || "Utracono połączenie w hiperprzestrzeni. Spróbuj ponownie.";
+          displaySecurityError(timeoutMsg, 5);
+          throw new Error(timeoutMsg);
+        }
+        if (response.status === 429) {
+          const rateLimitMsg = errorData.details || "Przekroczono limit transmisji. Nadajnik przegrzany. Poczekaj chwilę.";
+          displaySecurityError(rateLimitMsg, 6);
+          throw new Error(rateLimitMsg);
+        }
+        if (response.status === 403) {
+          const blockedMsg = errorData.details || "System Arcon wykrył podejrzane działania. Komputery pokładowe obniżyły poziom dostępu.";
+          displaySecurityError(blockedMsg, 9);
+          throw new Error(blockedMsg);
+        }
+        if (response.status === 500) {
+          const serverErrorMsg = errorData.details || "KRYTYCZNY BŁĄD SYSTEMU: Niespójność danych w głównym rdzeniu AI. Wymagana natychmiastowa konserwacja.";
+          displaySecurityError(serverErrorMsg, 8);
+          throw new Error(serverErrorMsg);
+        }
+        
+        // Generic error handling
+        throw new Error(errorData.error || errorData.details || `Błąd serwera: ${response.status}`);
       }
-
+  
+      // Parse the response data
       const data = await response.json();
       
-      // Check if the response contains a security message
-      if (data.isSecurityThreat && data.securityMessage) {
-        displaySecurityError(data.securityMessage, Math.ceil(data.riskScore / 10));
-        return;
+      // Enhanced security handling - log for debugging
+      console.log("API Response:", data);
+      
+      // Check if the response contains security information
+      // This handles both explicit security threats and progressive risk
+      if (data.isSecurityThreat || data.securityMessage || data.riskScore > 30) {
+        const severity = data.riskScore ? Math.ceil(data.riskScore / 10) : 5;
+        displaySecurityError(
+          data.securityMessage || "Wykryto potencjalne zagrożenie bezpieczeństwa.", 
+          severity
+        );
+        
+        // For severe threats, don't add a message to the chat
+        if (data.riskScore > 70) {
+          return;
+        }
       }
       
       const botMessage = {
@@ -372,15 +407,15 @@ const SpaceThemedChatApp = () => {
         timestamp: new Date().toISOString(),
         id: `bot-${messageId}`
       };
-
+  
       setDisplayMessages(prev => [...prev, botMessage]);
       setMessages(prev => [...prev, botMessage]);
-
+  
       // Play transmission sound after AI response
       const randomSound = new Audio(transmissionSounds[Math.floor(Math.random() * transmissionSounds.length)]);
       randomSound.volume = 0.2;
       randomSound.play().catch(err => console.warn("Dźwięk transmisji zablokowany:", err));
-
+  
       // The typing effect component will handle scrolling when complete
     } catch (err) {
       console.error('Błąd wysyłania wiadomości:', err);
