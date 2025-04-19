@@ -1,4 +1,4 @@
-// middleware/error-handler.js - Global error handling middleware
+// In server/middleware/error-handler.js
 import { getSecurityMessage } from '../client/src/security/utils.js';
 import { enhancedLogSecurityEvent } from '../utils/logging.js';
 
@@ -23,13 +23,17 @@ export const errorHandler = (err, req, res, next) => {
   if (err.code === 'ETIMEDOUT' || err.code === 'ECONNABORTED' || err.message.includes('timeout')) {
     return res.status(504).json({ 
       error: 'Request timeout', 
-      details: getSecurityMessage('timeout', 5)
+      details: getSecurityMessage('timeout', 5),
+      isSecurityThreat: true,
+      riskScore: 50
     });
   }
   
-  // Default error response
+  // Default error response - updated to include security properties
   return res.status(500).json({ 
     error: 'Błąd serwera', 
-    details: getSecurityMessage('serverError', 4)
+    details: getSecurityMessage('serverError', 8),
+    isSecurityThreat: true,
+    riskScore: 80 // Higher risk score for server errors
   });
 };

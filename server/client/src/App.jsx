@@ -13,7 +13,13 @@ const SpaceThemedChatApp = () => {
   const [warningMessage, setWarningMessage] = useState(null);
   const [consecutiveWarnings, setConsecutiveWarnings] = useState(0);
   const [typingComplete, setTypingComplete] = useState({}); // Track which messages are done typing
-  const [securityModal, setSecurityModal] = useState({ visible: false, message: '', severity: 5 }); // New state for security modal
+  const [securityModal, setSecurityModal] = useState({ 
+    visible: false, 
+    message: '', 
+    severity: 5,
+    isSystemError: false,
+    shouldShake: false
+  }); // Enhanced state for security modal
 
   const messagesEndRef = useRef(null);
   const chatContentRef = useRef(null);
@@ -129,22 +135,38 @@ const SpaceThemedChatApp = () => {
   useEffect(() => inputRef.current?.focus(), []);
   useEffect(() => () => abortControllerRef.current?.abort(), []);
 
-  // Display security error in modal
+  // Display security error in modal - ENHANCED VERSION
   const displaySecurityError = (message, severity = 5) => {
     // Play alert sound when showing security modal
     const alertSound = new Audio('/alert.mp3'); // Add this sound file to your public folder
     alertSound.volume = 0.3;
     alertSound.play().catch(err => console.warn("Dźwięk alertu zablokowany:", err));
     
-    // Show the modal
+    // Determine if this is a critical system error
+    const isSystemError = message && (
+      message.includes("KRYTYCZNY BŁĄD SYSTEMU") || 
+      message.includes("Błąd w rdzeniu") ||
+      message.includes("Awaria podsystemów") ||
+      message.includes("Niespójność danych")
+    );
+    
+    // For system errors, ensure higher severity
+    const adjustedSeverity = isSystemError && severity < 8 ? 8 : severity;
+    
+    // Add shake animation for serious errors (>= 8 severity)
+    const shouldShake = adjustedSeverity >= 8;
+    
+    // Show the modal with possibly adjusted properties
     setSecurityModal({
       visible: true,
       message,
-      severity
+      severity: adjustedSeverity,
+      isSystemError,
+      shouldShake
     });
 
     // Auto-hide after delay for lower severity issues
-    if (severity < 8) {
+    if (adjustedSeverity < 8) {
       securityTimeoutRef.current = setTimeout(() => {
         closeSecurityModal();
       }, 10000);
@@ -189,6 +211,19 @@ const SpaceThemedChatApp = () => {
         }
       }
     }, 1000);
+  };
+
+  // Determine the severity class for the modal
+  const getSeverityClass = () => {
+    const { severity, isSystemError } = securityModal;
+    
+    // Prioritize system error styling
+    if (isSystemError) return 'system-error';
+    
+    // Otherwise use regular severity classes
+    return severity >= 8 ? 'high-severity' : 
+           severity >= 5 ? 'medium-severity' : 
+           'low-severity';
   };
 
   // Function to check input for jailbreak patterns
@@ -310,6 +345,13 @@ const SpaceThemedChatApp = () => {
         displaySecurityError(blockedMsg, 9);
         throw new Error(blockedMsg);
       }
+      // NEW: Handle 500 server errors as security events
+      if (response.status === 500) {
+        const errorData = await response.json().catch(() => null);
+        const serverErrorMsg = errorData?.details || "KRYTYCZNY BŁĄD SYSTEMU: Niespójność danych w głównym rdzeniu AI. Wymagana natychmiastowa konserwacja.";
+        displaySecurityError(serverErrorMsg, 8);
+        throw new Error(serverErrorMsg);
+      }
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
@@ -343,6 +385,14 @@ const SpaceThemedChatApp = () => {
     } catch (err) {
       console.error('Błąd wysyłania wiadomości:', err);
       if (err.name !== 'AbortError') {
+        // Update error handling to use security modal for non-abort errors
+        if (!err.message.includes('AbortError')) {
+          // Display server errors in security modal
+          displaySecurityError(
+            err.message || "Nieoczekiwany błąd systemu. Inicjowanie procedur awaryjnych. Proszę czekać.", 
+            7
+          );
+        }
         setError(err.message.includes('timed out') ? err.message : err.message || "Połączenie neuronowe nie powiodło się.");
       }
     } finally {
@@ -405,14 +455,6 @@ const SpaceThemedChatApp = () => {
         onComplete={() => handleTypingComplete(messageId)}
       />
     );
-  };
-
-  // Determine the severity class for the modal
-  const getSeverityClass = () => {
-    const { severity } = securityModal;
-    return severity >= 8 ? 'high-severity' : 
-           severity >= 5 ? 'medium-severity' : 
-           'low-severity';
   };
 
   return (
@@ -490,11 +532,11 @@ const SpaceThemedChatApp = () => {
         </div>
       </footer>
 
-      {/* Security Error Modal */}
+      {/* Security Error Modal - ENHANCED VERSION */}
       {securityModal.visible && (
         <div className="security-error-modal" onClick={closeSecurityModal}>
           <div 
-            className={`security-modal-content ${getSeverityClass()}`} 
+            className={`security-modal-content ${getSeverityClass()} ${securityModal.shouldShake ? 'shake-animation' : ''}`} 
             onClick={(e) => e.stopPropagation()}
           >
             <div className="security-icon">

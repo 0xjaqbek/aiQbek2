@@ -966,3 +966,40 @@ code {
     font-size: 16px;
   }
 }
+
+/* System error specific styling */
+.system-error {
+  border-top: 6px solid #c0392b;
+  box-shadow: 0 0 30px rgba(192, 57, 43, 0.4);
+  background-color: #1a1d2d;
+  background-image: 
+    linear-gradient(135deg, rgba(192, 57, 43, 0.05) 0%, transparent 100%),
+    linear-gradient(45deg, transparent 0%, rgba(192, 57, 43, 0.1) 100%);
+}
+
+.system-error .security-icon {
+  color: #c0392b;
+  animation: pulse-error 1.5s infinite;
+}
+
+@keyframes pulse-error {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.2); filter: drop-shadow(0 0 8px rgba(192, 57, 43, 0.8)); }
+}
+
+/* Enhanced shake animation for serious system errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-7px); }
+  20%, 40%, 60%, 80% { transform: translateX(7px); }
+}
+
+.shake-animation {
+  animation: shake 0.6s cubic-bezier(.36,.07,.19,.97) both;
+}
+
+/* Adjust severity classes to include system error */
+.security-modal-content.system-error .security-message {
+  font-weight: bold;
+  color: rgba(255, 210, 210, 0.9);
+}
