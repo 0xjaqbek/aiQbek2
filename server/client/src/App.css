@@ -397,6 +397,7 @@ body {
 }
 
 .input-area:focus-within {
+  border: 1px solid rgb(14, 219, 255);
   box-shadow: 
     0 12px 25px rgba(0, 0, 0, 0.6),
     0 6px 20px rgba(0, 10, 20, 0.4),
