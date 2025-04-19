@@ -81,7 +81,10 @@ export async function processChat(req, res) {
       await new Promise(resolve => setTimeout(resolve, securityConfig.jailbreakDetection.jailbreakResponseDelay));
     }
     
-    console.log("Processing message:", securityResult.sanitizedInput.substring(0, 50) + "...");
+    console.log("Processing message:", 
+        (typeof securityResult.sanitizedInput === 'string' ? 
+          securityResult.sanitizedInput.substring(0, 50) : 
+          String(securityResult.sanitizedInput || '').substring(0, 50)) + "...");
     console.log("History length:", history.length);
     
     // Get response from AI service
