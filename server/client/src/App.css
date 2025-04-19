@@ -400,7 +400,7 @@ body {
   border: 1px solid rgb(14, 219, 255);
   box-shadow: 
     0 12px 25px rgb(0, 0, 0),
-    0 6px 20px rgb(0, 10, 20),
+    0 6px 20px rgba(0, 102, 204, 0.717),
     0 0 20px rgba(14, 219, 255, 0.8),
     inset 0 1px 3px rgba(14, 219, 255, 0.5);
 }
@@ -754,7 +754,7 @@ code {
   }
   
   .app-title {
-    font-size: 2rem;
+    font-size: 1rem;
   }
   
   /* Reduce 3D effects on mobile for better performance */
