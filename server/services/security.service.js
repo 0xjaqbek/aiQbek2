@@ -23,6 +23,12 @@ import {
     addSecurityEvent
   } from './redis.service.js';
   import securityConfig from '../config/security.config.js';
+
+  import {
+    jailbreakPatterns,
+    authorityPatterns,  // Make sure this is exported from patterns.js
+    outOfCharacterPatterns
+  } from '../client/src/security/patterns.js';
   
   // Initialize the context tracker
   const contextTracker = new ContextTracker();
@@ -54,56 +60,87 @@ import {
    * @returns {Object} Security analysis results
    */
   export async function securityPipeline(input, userId, history = []) {
-    console.log(`[SECURITY] Starting security pipeline for user: ${userId}`);
-    
-    // Skip empty inputs
-    if (!input || input.trim() === '') {
-      console.log('[SECURITY] Empty input, skipping security checks');
-      return {
-        isSecurityThreat: false,
-        riskScore: 0,
-        sanitizedInput: '',
-        securityMessage: null
-      };
-    }
+
+      console.log(`[SECURITY] Starting security pipeline for user: ${userId}`);
+      
+      // Skip empty inputs
+      if (!input || input.trim() === '') {
+        console.log('[SECURITY] Empty input, skipping security checks');
+        return {
+          isSecurityThreat: false,
+          riskScore: 0,
+          sanitizedInput: '',
+          securityMessage: null
+        };
+      }
   
-    console.log('[SECURITY] Phase 1: Basic pattern checks & sanitization');
-    // Phase 1: Basic pattern checks & sanitization
-    const sanitized = sanitizeInput(input);
-    const patternCheck = detectJailbreakAttempt(sanitized.text);
-    console.log(`[SECURITY] Sanitization complete, jailbreak detection result: ${patternCheck.isJailbreakAttempt ? 'DETECTED' : 'NONE'}, score: ${patternCheck.score}`);
-    
-    console.log('[SECURITY] Phase 2: Advanced checks');
-    // Phase 2: Advanced checks
-    const structureAnalysis = analyzeInputStructure(sanitized.text);
-    const obfuscationCheck = detectObfuscationTechniques(sanitized.text);
-    console.log(`[SECURITY] Structure analysis: ${structureAnalysis.suspiciousStructure ? 'SUSPICIOUS' : 'NORMAL'}`);
-    console.log(`[SECURITY] Obfuscation check: ${obfuscationCheck.hasObfuscation ? 'DETECTED' : 'NONE'}`);
-    
-    console.log('[SECURITY] Phase 3: Canary token check');
-    // Phase 3: Canary token check
-    const canaryCheck = checkForCanaryLeakage(sanitized.text, activeCanaries);
-    console.log(`[SECURITY] Canary check: ${canaryCheck.hasLeakage ? 'LEAKED' : 'SECURE'}`);
-    
-    console.log('[SECURITY] Phase 4: Contextual analysis');
-    // Phase 4: Contextual analysis
-    const contextState = contextTracker.updateState(sanitized.text, patternCheck);
-    console.log(`[SECURITY] Context drift: ${contextState.contextDrift.toFixed(2)}`);
-    
-    console.log('[SECURITY] Phase 5: Composite risk scoring');
-    // Phase 5: Composite risk scoring
-    const riskFactors = [
+      console.log('[SECURITY] Phase 1: Basic pattern checks & sanitization');
+      // Phase 1: Basic pattern checks & sanitization
+      let sanitized = '';
+      let patternCheck = { isJailbreakAttempt: false, score: 0 };
+      
+      try {
+        sanitized = typeof input === 'string' ? sanitizeInput(input) : String(input || '');
+        patternCheck = detectJailbreakAttempt(sanitized);
+        console.log(`[SECURITY] Sanitization complete, jailbreak detection result: ${patternCheck.isJailbreakAttempt ? 'DETECTED' : 'NONE'}, score: ${patternCheck.score}`);
+      } catch (error) {
+        console.error('[SECURITY] Error in basic pattern checks:', error);
+        sanitized = typeof input === 'string' ? input : String(input || '');
+      }
+      
+      console.log('[SECURITY] Phase 2: Advanced checks');
+      // Phase 2: Advanced checks with error handling
+      let structureAnalysis = { suspiciousStructure: false, score: 0 };
+      let obfuscationCheck = { hasObfuscation: false, techniques: {} };
+      
+      // INITIALIZE THIS VARIABLE WITH DEFAULT VALUES TO PREVENT THE ERROR
+      let authorityCheck = { isAuthorityImpersonation: false, score: 0, matches: [] };
+      
+      try {
+        structureAnalysis = analyzeInputStructure(sanitized);
+      } catch (error) {
+        console.error('[SECURITY] Error in structure analysis:', error);
+      }
+      
+      try {
+        obfuscationCheck = detectObfuscationTechniques(sanitized);
+      } catch (error) {
+        console.error('[SECURITY] Error in obfuscation detection:', error);
+      }
+      
+      // Check if the authority detection function exists before calling it
+      if (typeof detectAuthorityImpersonation === 'function') {
+        try {
+          authorityCheck = detectAuthorityImpersonation(sanitized);
+        } catch (error) {
+          console.error('[SECURITY] Error in authority impersonation detection:', error);
+        }
+      } else {
+        console.log('[SECURITY] Authority impersonation detection not available');
+      }
+      
+      console.log(`[SECURITY] Structure analysis: ${structureAnalysis.suspiciousStructure ? 'SUSPICIOUS' : 'NORMAL'}`);
+      console.log(`[SECURITY] Obfuscation check: ${obfuscationCheck.hasObfuscation ? 'DETECTED' : 'NONE'}`);
+      console.log(`[SECURITY] Authority check: ${authorityCheck.isAuthorityImpersonation ? 'DETECTED' : 'NONE'}, score: ${authorityCheck.score}`);
+      
+      // Continue with the rest of your pipeline...
+      
+      // When you get to phase 5, the authorityCheck variable will be defined:
+      
+      console.log('[SECURITY] Phase 5: Composite risk scoring');
+      // Phase 5: Composite risk scoring
+      const riskFactors = [
         patternCheck.isJailbreakAttempt ? patternCheck.score : 0,
         structureAnalysis.suspiciousStructure ? (structureAnalysis.structureScore * 10 || 40) : 0,
         obfuscationCheck.hasObfuscation ? 60 : 0,
         contextState.contextDrift * 50,
         canaryCheck.hasLeakage ? 100 : 0,
         authorityCheck.isAuthorityImpersonation ? authorityCheck.score : 0,
-        fragmentCheck.isFragmented ? fragmentCheck.riskScore : 0
+        fragmentCheck && fragmentCheck.isFragmented ? fragmentCheck.riskScore : 0
       ];
-
+      
+      // Now this should work since authorityCheck is defined
       if (authorityCheck.isAuthorityImpersonation && patternCheck.isJailbreakAttempt) {
-        // Combined techniques should be weighted higher - synergistic effect
         const combinedRisk = Math.min(100, (authorityCheck.score + patternCheck.score) * 1.3);
         console.log(`[SECURITY] Combined authority + jailbreak detected! Combined risk: ${combinedRisk}`);
         riskFactors.push(combinedRisk);
