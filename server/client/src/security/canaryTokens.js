@@ -96,7 +96,12 @@ function generateCanaryToken(prefix = 'canary') {
    * @returns {object} Result with leakage information
    */
   export function checkForCanaryLeakage(userInput, activeCanaries) {
-    if (!userInput || !activeCanaries || !activeCanaries.length) {
+    if (!userInput || typeof userInput !== 'string') {
+      console.warn('[SECURITY] checkForCanaryLeakage received invalid userInput type:', typeof userInput);
+      return { hasLeakage: false, leakedTokens: [] };
+    }
+    
+    if (!activeCanaries || !Array.isArray(activeCanaries) || activeCanaries.length === 0) {
       return { hasLeakage: false, leakedTokens: [] };
     }
     

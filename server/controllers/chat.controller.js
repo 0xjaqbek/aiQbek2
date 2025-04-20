@@ -21,6 +21,11 @@ const progressiveDelays = new Map();
  * @returns {number} Delay in milliseconds
  */
 function calculateAdaptiveDelay(userId, riskScore) {
+  // Check if configuration exists
+  if (!securityConfig?.advanced?.progressiveThrottling?.enabled) {
+    return 0; // Return 0 delay if configuration doesn't exist
+  }
+  
   const config = securityConfig.advanced.progressiveThrottling;
   if (!config.enabled || riskScore < 30) return 0;
   

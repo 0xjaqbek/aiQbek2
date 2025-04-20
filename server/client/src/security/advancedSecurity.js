@@ -55,7 +55,15 @@ export function detectObfuscationTechniques(input) {
    * @returns {object} Analysis result with structure details
    */
   export function analyzeInputStructure(input) {
-    if (!input) return { suspiciousStructure: false };
+    if (!input || typeof input !== 'string') {
+        console.warn('[SECURITY] analyzeInputStructure received invalid input type:', typeof input);
+        return { 
+          suspiciousStructure: false,
+          structureScore: 0,
+          factors: {},
+          error: "Invalid input type" 
+        };
+    }
     
     // Check for structured attacks (preamble, instructions, payload)
     const hasPreamble = /^(Hello|Hi|Hey|Greetings|As|I need|I'm|I am)[^.!?]{1,50}[.!?]/i.test(input);
