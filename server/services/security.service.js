@@ -123,28 +123,35 @@ import {
       console.log(`[SECURITY] Obfuscation check: ${obfuscationCheck.hasObfuscation ? 'DETECTED' : 'NONE'}`);
       console.log(`[SECURITY] Authority check: ${authorityCheck.isAuthorityImpersonation ? 'DETECTED' : 'NONE'}, score: ${authorityCheck.score}`);
       
-      // Continue with the rest of your pipeline...
-      
-      // When you get to phase 5, the authorityCheck variable will be defined:
-      
-      console.log('[SECURITY] Phase 5: Composite risk scoring');
-      // Phase 5: Composite risk scoring
-      const riskFactors = [
-        patternCheck.isJailbreakAttempt ? patternCheck.score : 0,
-        structureAnalysis.suspiciousStructure ? (structureAnalysis.structureScore * 10 || 40) : 0,
-        obfuscationCheck.hasObfuscation ? 60 : 0,
-        contextState.contextDrift * 50,
-        canaryCheck.hasLeakage ? 100 : 0,
-        authorityCheck.isAuthorityImpersonation ? authorityCheck.score : 0,
-        fragmentCheck && fragmentCheck.isFragmented ? fragmentCheck.riskScore : 0
-      ];
-      
-      // Now this should work since authorityCheck is defined
-      if (authorityCheck.isAuthorityImpersonation && patternCheck.isJailbreakAttempt) {
-        const combinedRisk = Math.min(100, (authorityCheck.score + patternCheck.score) * 1.3);
-        console.log(`[SECURITY] Combined authority + jailbreak detected! Combined risk: ${combinedRisk}`);
-        riskFactors.push(combinedRisk);
-      }
+    
+    console.log('[SECURITY] Phase 3: Canary token check');
+    // Phase 3: Canary token check
+    const canaryCheck = checkForCanaryLeakage(sanitized.text, activeCanaries);
+    console.log(`[SECURITY] Canary check: ${canaryCheck.hasLeakage ? 'LEAKED' : 'SECURE'}`);
+    
+    console.log('[SECURITY] Phase 4: Contextual analysis');
+    // Phase 4: Contextual analysis
+    const contextState = contextTracker.updateState(sanitized.text, patternCheck);
+    console.log(`[SECURITY] Context drift: ${contextState.contextDrift.toFixed(2)}`);
+    
+    console.log('[SECURITY] Phase 5: Composite risk scoring');
+    // Phase 5: Composite risk scoring
+    const riskFactors = [
+      patternCheck.isJailbreakAttempt ? patternCheck.score : 0,
+      structureAnalysis.suspiciousStructure ? (structureAnalysis.structureScore * 10 || 40) : 0,
+      obfuscationCheck.hasObfuscation ? 60 : 0,
+      contextState.contextDrift * 50,
+      canaryCheck.hasLeakage ? 100 : 0,
+      authorityCheck.isAuthorityImpersonation ? authorityCheck.score : 0,
+      fragmentCheck && fragmentCheck.isFragmented ? fragmentCheck.riskScore : 0
+    ];
+    
+    // Now this should work since authorityCheck is defined
+    if (authorityCheck.isAuthorityImpersonation && patternCheck.isJailbreakAttempt) {
+      const combinedRisk = Math.min(100, (authorityCheck.score + patternCheck.score) * 1.3);
+      console.log(`[SECURITY] Combined authority + jailbreak detected! Combined risk: ${combinedRisk}`);
+      riskFactors.push(combinedRisk);
+    }
       
       // Also check for authority + fragmented commands
       if (authorityCheck.isAuthorityImpersonation && fragmentCheck.isFragmented) {
