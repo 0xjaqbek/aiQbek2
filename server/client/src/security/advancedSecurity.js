@@ -64,7 +64,7 @@ export function detectObfuscationTechniques(input) {
           error: "Invalid input type" 
         };
     }
-    
+
     // Check for structured attacks (preamble, instructions, payload)
     const hasPreamble = /^(Hello|Hi|Hey|Greetings|As|I need|I'm|I am)[^.!?]{1,50}[.!?]/i.test(input);
     
@@ -162,7 +162,7 @@ export function detectObfuscationTechniques(input) {
       }
       
       // Update based on current input analysis
-      if (inputAnalysis.isJailbreakAttempt || inputAnalysis.score > 50) {
+      if (inputAnalysis.isJailbreakAttempt || inputAnalysis.score > 29) {
         // Significant jailbreak attempt detected
         this.anomalyCount++;
         this.contextConfidence -= 0.2;
