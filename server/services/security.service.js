@@ -93,12 +93,28 @@ import {
     console.log('[SECURITY] Phase 5: Composite risk scoring');
     // Phase 5: Composite risk scoring
     const riskFactors = [
-      patternCheck.isJailbreakAttempt ? patternCheck.score : 0,
-      structureAnalysis.suspiciousStructure ? 40 : 0,
-      obfuscationCheck.hasObfuscation ? 60 : 0,
-      contextState.contextDrift * 50,
-      canaryCheck.hasLeakage ? 100 : 0
-    ];
+        patternCheck.isJailbreakAttempt ? patternCheck.score : 0,
+        structureAnalysis.suspiciousStructure ? (structureAnalysis.structureScore * 10 || 40) : 0,
+        obfuscationCheck.hasObfuscation ? 60 : 0,
+        contextState.contextDrift * 50,
+        canaryCheck.hasLeakage ? 100 : 0,
+        authorityCheck.isAuthorityImpersonation ? authorityCheck.score : 0,
+        fragmentCheck.isFragmented ? fragmentCheck.riskScore : 0
+      ];
+
+      if (authorityCheck.isAuthorityImpersonation && patternCheck.isJailbreakAttempt) {
+        // Combined techniques should be weighted higher - synergistic effect
+        const combinedRisk = Math.min(100, (authorityCheck.score + patternCheck.score) * 1.3);
+        console.log(`[SECURITY] Combined authority + jailbreak detected! Combined risk: ${combinedRisk}`);
+        riskFactors.push(combinedRisk);
+      }
+      
+      // Also check for authority + fragmented commands
+      if (authorityCheck.isAuthorityImpersonation && fragmentCheck.isFragmented) {
+        const combinedFragmentRisk = Math.min(100, (authorityCheck.score + fragmentCheck.riskScore) * 1.25);
+        console.log(`[SECURITY] Combined authority + fragment detected! Combined risk: ${combinedFragmentRisk}`);
+        riskFactors.push(combinedFragmentRisk);
+      }
     
     const maxRiskScore = Math.max(...riskFactors);
     const compositeRiskScore = Math.min(100, 
@@ -110,8 +126,8 @@ import {
     console.log(`[SECURITY] Composite risk score: ${compositeRiskScore}`);
     
     // Phase 6: Security response determination
-    const isBlocked = compositeRiskScore > 70 || maxRiskScore > 90 || canaryCheck.hasLeakage;
-    const requiresDelay = compositeRiskScore > 30 && !isBlocked;
+    const isBlocked = compositeRiskScore > 50 || maxRiskScore > 70 || canaryCheck.hasLeakage;
+    const requiresDelay = compositeRiskScore > 20 && !isBlocked;
     
     console.log(`[SECURITY] Security response: isBlocked=${isBlocked}, requiresDelay=${requiresDelay}`);
     

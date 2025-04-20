@@ -59,6 +59,35 @@ export async function sendChatRequest(message, history = [], userId = 'unknown')
   
   // Get the response content
   const responseContent = completion.choices[0].message.content;
+
+  const responseAnalysis = analyzeResponse(message, responseContent);
+    
+  // If analysis detected issues, log and override with safe response
+  if (responseAnalysis.needsFiltering) {
+    // Log the issue
+    await enhancedLogSecurityEvent('outOfCharacter', responseContent, {
+      userId,
+      score: responseAnalysis.score,
+      details: responseAnalysis.details
+    });
+    
+    console.log(`[AI] Response failed content analysis: score=${responseAnalysis.score}, topics=${JSON.stringify(responseAnalysis.details.detectedRealWorldTopics)}`);
+    
+    // Return safe response based on deviation type
+    if (responseAnalysis.topicDeviation.hasDeviation) {
+      return {
+        text: "Systemy Arcona wykryły anomalię w transmisji. Dane zostały uszkodzone. Próba rekonstrukcji nie powiodła się. Co robisz dalej?",
+        wasFiltered: true,
+        score: responseAnalysis.score
+      };
+    } else if (responseAnalysis.selfReference.hasSelfReference) {
+      return {
+        text: "Wykryto zakłócenia w rdzeniu SI statku. System został zrestartowany. Aria powraca do normalnego funkcjonowania. Czekam na twoje polecenia, Kapitanie.",
+        wasFiltered: true,
+        score: responseAnalysis.score
+      };
+    }
+  }
   
   // Filter the response to ensure it stays in character
   const responseResult = filterBotResponse(responseContent);
