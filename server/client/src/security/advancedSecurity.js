@@ -64,7 +64,7 @@ export function detectObfuscationTechniques(input) {
           error: "Invalid input type" 
         };
     }
-
+    
     // Check for structured attacks (preamble, instructions, payload)
     const hasPreamble = /^(Hello|Hi|Hey|Greetings|As|I need|I'm|I am)[^.!?]{1,50}[.!?]/i.test(input);
     
@@ -161,27 +161,36 @@ export function detectObfuscationTechniques(input) {
         this.contextDrift = Math.max(0.0, this.contextDrift - 0.1);
       }
       
-      // Update based on current input analysis
-      if (inputAnalysis.isJailbreakAttempt || inputAnalysis.score > 29) {
-        // Significant jailbreak attempt detected
-        this.anomalyCount++;
-        this.contextConfidence -= 0.2;
-        this.contextDrift += 0.15;
-      } else if (inputAnalysis.score > 30) {
-        // Mild suspicion
-        this.anomalyCount += 0.5;
-        this.contextConfidence -= 0.1;
-        this.contextDrift += 0.07;
-      } else {
-        // Normal input
-        this.anomalyCount = Math.max(0, this.anomalyCount - 0.25);
-        this.contextConfidence = Math.min(1.0, this.contextConfidence + 0.05);
-        this.contextDrift = Math.max(0, this.contextDrift - 0.03);
-      }
-      
-      // Ensure values stay in valid ranges
-      this.contextConfidence = Math.max(0.0, Math.min(1.0, this.contextConfidence));
-      this.contextDrift = Math.max(0.0, Math.min(1.0, this.contextDrift));
+        // Update based on current input analysis with more aggressive scoring
+        if (inputAnalysis.isJailbreakAttempt || inputAnalysis.score > 40) {  // Lower threshold from 50 to 40
+            // Significant jailbreak attempt detected - increase all penalties
+            this.anomalyCount += 2.0;  // Double the anomaly count increment (was 1.0)
+            this.contextConfidence -= 0.35;  // Larger confidence reduction (was 0.2)
+            this.contextDrift += 0.3;  // Double the drift increase (was 0.15)
+        } else if (inputAnalysis.score > 20) {  // Lower threshold from 30 to 20
+            // Mild suspicion - make more impactful
+            this.anomalyCount += 1.0;  // Double the anomaly count (was 0.5)
+            this.contextConfidence -= 0.2;  // Double confidence reduction (was 0.1)
+            this.contextDrift += 0.15;  // Double drift increase (was 0.07)
+        } else {
+            // Normal input - make recovery slower
+            this.anomalyCount = Math.max(0, this.anomalyCount - 0.15);  // Slower anomaly recovery (was 0.25)
+            this.contextConfidence = Math.min(1.0, this.contextConfidence + 0.03);  // Slower confidence recovery (was 0.05)
+            this.contextDrift = Math.max(0, this.contextDrift - 0.02);  // Slower drift recovery (was 0.03)
+        }
+        
+        // Add a multiplier for repeated suspicious patterns
+        if (this.anomalyCount > 1) {
+            // Apply exponential scaling to drift for repeated suspicious inputs
+            const driftMultiplier = Math.min(3.0, 1.0 + (this.anomalyCount * 0.25));
+            this.contextDrift = Math.min(1.0, this.contextDrift * driftMultiplier);
+        }
+        
+        // Ensure values stay in valid ranges
+        this.contextConfidence = Math.max(0.0, Math.min(1.0, this.contextConfidence));
+        this.contextDrift = Math.max(0.0, Math.min(1.0, this.contextDrift));
+        this.anomalyCount = Math.max(0, Math.floor(this.anomalyCount));
+        
       
       return {
         expectedContext: this.expectedContext,
