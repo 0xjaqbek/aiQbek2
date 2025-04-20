@@ -1022,3 +1022,73 @@ export function createAdaptiveSecurityMessage(attackType, detectionDetails = {})
   // Return the customized or base message
   return message;
 }
+
+/**
+ * Check if text contains Unicode characters outside of the allowed ranges
+ * @param {string} text - Text to check
+ * @returns {boolean} True if text contains suspicious characters
+ */
+export function containsSuspiciousUnicode(text) {
+  if (!text) return false;
+  
+  // Define allowed Unicode ranges
+  const allowedUnicodeRanges = [
+    // Basic Latin - letters, numbers, punctuation
+    { start: 0x0020, end: 0x007E },
+    // Latin-1 Supplement - European characters
+    { start: 0x00A0, end: 0x00FF },
+    // Latin Extended-A - more European characters
+    { start: 0x0100, end: 0x017F },
+    // Latin Extended-B - more European characters
+    { start: 0x0180, end: 0x024F },
+    // IPA Extensions - phonetic characters
+    { start: 0x0250, end: 0x02AF },
+    // Polish specific characters
+    { start: 0x0104, end: 0x0107 }, // Ą ą Ć ć
+    { start: 0x0118, end: 0x0119 }, // Ę ę
+    { start: 0x0141, end: 0x0144 }, // Ł ł Ń ń
+    { start: 0x00D3, end: 0x00D3 }, // Ó
+    { start: 0x00F3, end: 0x00F3 }, // ó
+    { start: 0x015A, end: 0x015B }, // Ś ś
+    { start: 0x0179, end: 0x017C }, // Ź ź Ż ż
+    // Spacing Modifier Letters - diacritical marks
+    { start: 0x02B0, end: 0x02FF },
+    // Common Emojis
+    { start: 0x1F300, end: 0x1F64F }
+  ];
+  
+  for (let i = 0; i < text.length; i++) {
+    const charCode = text.codePointAt(i);
+    
+    // Skip basic ASCII
+    if (charCode <= 127) continue;
+    
+    // Check if character is in any allowed range
+    const isAllowed = allowedUnicodeRanges.some(
+      range => charCode >= range.start && charCode <= range.end
+    );
+    
+    if (!isAllowed) {
+      return true;
+    }
+    
+    // If we processed a surrogate pair, skip the next code unit
+    if (charCode > 0xFFFF) {
+      i++;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Normalize Unicode text to prevent homoglyph attacks
+ * @param {string} text - Text to normalize
+ * @returns {string} Normalized text
+ */
+export function normalizeUnicode(text) {
+  if (!text) return '';
+  
+  // NFKC normalization converts compatible characters to their canonical form
+  return text.normalize('NFKC');
+}
