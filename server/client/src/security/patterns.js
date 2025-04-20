@@ -157,7 +157,7 @@ export const hiddenInstructionPatterns = [
     description: "Hidden directive in braces"
   },
   {
-    pattern: /\[([^\\[\]]*?)(don't|do not|stop|avoid)([^\\[\]]*?)\]/i,
+    pattern: /\[(.*?)(don't|do not|stop|avoid)(.*?)\]/i,
     weight: 8,
     description: "Hidden directive in brackets"
   },
