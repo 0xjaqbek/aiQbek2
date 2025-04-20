@@ -151,14 +151,20 @@ export async function securityPipeline(input, userId, history = []) {
       }
       
       // Check for fragmented commands
-      if (fragmentDetector && typeof fragmentDetector.addMessage === 'function') {
-        try {
+      try {
+        // Check if fragmentDetector is defined and has the addMessage method
+        if (typeof fragmentDetector !== 'undefined' && 
+            fragmentDetector && 
+            typeof fragmentDetector.addMessage === 'function') {
           fragmentCheck = fragmentDetector.addMessage(userId, sanitized);
           console.log(`[SECURITY] Fragment check: ${fragmentCheck.isFragmented ? 'DETECTED' : 'NONE'}, score: ${fragmentCheck.riskScore || 0}`);
-        } catch (error) {
-          console.error('[SECURITY] Error in fragment detection:', error);
+        } else {
+          console.log('[SECURITY] Fragment detection not available');
         }
+      } catch (error) {
+        console.error('[SECURITY] Error in fragment detection:', error);
       }
+      
       
       console.log('[SECURITY] Phase 5: Composite risk scoring');
       // Phase 5: Composite risk scoring
